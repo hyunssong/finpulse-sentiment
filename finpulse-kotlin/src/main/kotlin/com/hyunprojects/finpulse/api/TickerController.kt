@@ -2,16 +2,44 @@ package com.hyunprojects.finpulse.api
 
 import com.hyunprojects.finpulse.api.dto.*
 import com.hyunprojects.finpulse.dto.ArticleRepository
+import com.hyunprojects.finpulse.ingestion.SymbolRegistryService
+import com.hyunprojects.finpulse.service.VolumeService
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.springframework.data.domain.PageRequest
+import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.*
 import java.time.Instant
 import java.time.temporal.ChronoUnit
 
 @RestController
 @RequestMapping("/api/v1/tickers")
-class TickerController(private val articleRepository: ArticleRepository) {
+class TickerController(
+    private val articleRepository: ArticleRepository,
+    private val symbolRegistry: SymbolRegistryService,
+    private val volumeService: VolumeService
+) {
+
+    @GetMapping("/{symbol}/rvol")
+    suspend fun getRvol(@PathVariable symbol: String): ResponseEntity<Any> {
+        val data = withContext(Dispatchers.IO) { volumeService.getRvolData(symbol.uppercase()) }
+            ?: return ResponseEntity.notFound().build()
+        return ResponseEntity.ok(data)
+    }
+
+    @GetMapping("/watched")
+    fun getWatchedSymbols(
+        @RequestParam(defaultValue = "") q: String,
+        @RequestParam(defaultValue = "0") page: Int,
+        @RequestParam(defaultValue = "100") size: Int
+    ): Map<String, Any> {
+        val effectiveSize = size.coerceIn(1, 500)
+        val all = symbolRegistry.symbols()
+            .let { list -> if (q.isBlank()) list else list.filter { it.contains(q.uppercase()) } }
+        val total = all.size
+        val data = all.drop(page * effectiveSize).take(effectiveSize)
+        return mapOf("symbols" to data, "total" to total, "page" to page, "size" to effectiveSize)
+    }
 
     @GetMapping("/{symbol}/articles")
     suspend fun getTickerArticles(
@@ -60,10 +88,11 @@ class TickerController(private val articleRepository: ArticleRepository) {
     suspend fun getTrending(@RequestParam(defaultValue = "10") limit: Int): TrendingResponse {
         val since = Instant.now().minus(24, ChronoUnit.HOURS)
         val effectiveLimit = limit.coerceIn(1, 50)
-        val rows = withContext(Dispatchers.IO) {
+        val tickers = withContext(Dispatchers.IO) {
             articleRepository.findTrendingByMentions(since, PageRequest.of(0, effectiveLimit))
+                .map { TrendingTicker(it.getTicker(), it.getMentionCount(), volumeService.calculateRvol(it.getTicker())) }
         }
-        return TrendingResponse(rows.map { TrendingTicker(it.getTicker(), it.getMentionCount()) })
+        return TrendingResponse(tickers)
     }
 
     @GetMapping("/movers")

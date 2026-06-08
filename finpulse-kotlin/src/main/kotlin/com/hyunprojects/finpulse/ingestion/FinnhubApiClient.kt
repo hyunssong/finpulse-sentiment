@@ -1,18 +1,20 @@
 package com.hyunprojects.finpulse.ingestion
 
-import com.hyunprojects.finpulse.kafka.dto.ArticleEvent  // or wherever this class lives
+import com.hyunprojects.finpulse.kafka.dto.ArticleEvent
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.stereotype.Component
 import org.springframework.web.client.RestClient
 import tools.jackson.databind.ObjectMapper
 import com.hyunprojects.finpulse.ingestion.dto.FinnhubArticle
+import com.hyunprojects.finpulse.ingestion.dto.FinnhubSymbol
 import java.time.LocalDate
 
 @Component
-class FinnhubApiClient(@Value("\${finnhub.api.key}") private val apiKey:String,
-                         @Value("\${finnhub.base.url}") private val baseUrl:String,
-                    private val objectMapper: ObjectMapper   // Spring auto-provides this
-    ): ApiClient {
+class FinnhubApiClient(
+    @Value("\${finnhub.api.key}") private val apiKey: String,
+    @Value("\${finnhub.base.url}") private val baseUrl: String,
+    private val objectMapper: ObjectMapper
+) : ApiClient {
 
     private val restClient = RestClient.builder()
         .baseUrl(baseUrl)
@@ -31,5 +33,18 @@ class FinnhubApiClient(@Value("\${finnhub.api.key}") private val apiKey:String,
         )
 
         return articles.map { it.toArticle(symbol) }
+    }
+
+    fun fetchSymbols(exchange: String = "US"): List<FinnhubSymbol> {
+        val json = restClient.get()
+            .uri("/stock/symbol?exchange={exchange}&token={apiKey}", exchange, apiKey)
+            .retrieve()
+            .body(String::class.java)
+            ?: return emptyList()
+
+        return objectMapper.readValue(
+            json,
+            objectMapper.typeFactory.constructCollectionType(List::class.java, FinnhubSymbol::class.java)
+        )
     }
 }

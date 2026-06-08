@@ -3,15 +3,18 @@ package com.hyunprojects.finpulse.kafka
 import com.hyunprojects.finpulse.kafka.dto.AnalyzedArticleEvent
 import com.hyunprojects.finpulse.kafka.dto.ArticleEvent
 import org.slf4j.LoggerFactory
+import org.springframework.beans.factory.annotation.Value
 import org.springframework.kafka.annotation.KafkaListener
 import org.springframework.kafka.core.KafkaTemplate
 import org.springframework.stereotype.Component
 import tools.jackson.databind.ObjectMapper
+import kotlin.math.abs
 
 @Component
 class SentimentProcessor(
     private val objectMapper: ObjectMapper,
-    private val kafkaTemplate: KafkaTemplate<String, String>
+    private val kafkaTemplate: KafkaTemplate<String, String>,
+    @Value("\${finpulse.kafka.salt-buckets:3}") private val saltBuckets: Int
 ) {
     private val log = LoggerFactory.getLogger(javaClass)
 
@@ -37,7 +40,8 @@ class SentimentProcessor(
                 sentimentScore = score
             )
             val json = objectMapper.writeValueAsString(analyzed)
-            kafkaTemplate.send("analyzed-articles", event.ticker, json)
+            val key = "${event.ticker}_${abs(event.url.hashCode()) % saltBuckets}"
+            kafkaTemplate.send("analyzed-articles", key, json)
             log.debug("Scored: ticker={} sentiment={} score={:.3f}", event.ticker, sentiment, score)
         } catch (e: Exception) {
             log.error("Failed to process raw article", e)

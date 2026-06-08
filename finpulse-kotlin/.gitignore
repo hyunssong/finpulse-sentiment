@@ -41,3 +41,8 @@ out/
 
 ### Kotlin ###
 .kotlin
+
+### Local secrets — never commit ###
+.env
+src/main/resources/application-local.properties
+src/main/resources/application-secrets.properties

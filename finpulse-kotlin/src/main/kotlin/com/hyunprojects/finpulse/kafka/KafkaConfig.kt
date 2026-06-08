@@ -11,15 +11,17 @@ class KafkaConfig {
 
     @Bean
     fun rawArticlesTopic(): NewTopic = TopicBuilder.name("raw-articles")
-        .partitions(1)
+        .partitions(6)
         .replicas(1)
         .config(TopicConfig.RETENTION_MS_CONFIG, "86400000")
+        .config(TopicConfig.MAX_MESSAGE_BYTES_CONFIG, "1048576")
         .build()
 
     @Bean
     fun analyzedArticlesTopic(): NewTopic = TopicBuilder.name("analyzed-articles")
-        .partitions(1)
+        .partitions(6)
         .replicas(1)
         .config(TopicConfig.RETENTION_MS_CONFIG, "86400000")
+        .config(TopicConfig.MAX_MESSAGE_BYTES_CONFIG, "1048576")
         .build()
 }

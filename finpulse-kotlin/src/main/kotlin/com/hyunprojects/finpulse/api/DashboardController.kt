@@ -5,6 +5,8 @@ import com.hyunprojects.finpulse.api.dto.Mover
 import com.hyunprojects.finpulse.api.dto.TrendingTicker
 import com.hyunprojects.finpulse.api.dto.toResponse
 import com.hyunprojects.finpulse.dto.ArticleRepository
+import com.hyunprojects.finpulse.ingestion.SymbolRegistryService
+import com.hyunprojects.finpulse.service.VolumeService
 import org.springframework.data.domain.PageRequest
 import org.springframework.data.domain.Sort
 import org.springframework.data.domain.Sort.Direction.DESC
@@ -18,7 +20,9 @@ import java.time.temporal.ChronoUnit
 
 @Controller
 class DashboardController(
-    private val articleRepository: ArticleRepository
+    private val articleRepository: ArticleRepository,
+    private val symbolRegistry: SymbolRegistryService,
+    private val volumeService: VolumeService
 ) {
 
     @GetMapping("/")
@@ -27,7 +31,7 @@ class DashboardController(
         val prev = Instant.now().minus(48, ChronoUnit.HOURS)
 
         val trending = articleRepository.findTrendingByMentions(since24h, PageRequest.of(0, 10))
-            .map { TrendingTicker(it.getTicker(), it.getMentionCount()) }
+            .map { TrendingTicker(it.getTicker(), it.getMentionCount(), volumeService.calculateRvol(it.getTicker())) }
 
         val movers = articleRepository.findMovers(since24h, prev, PageRequest.of(0, 10))
             .map { Mover(it.getTicker(), it.getRecentScore(), it.getPreviousScore(), it.getRecentScore() - it.getPreviousScore()) }
@@ -35,6 +39,13 @@ class DashboardController(
         model.addAttribute("trending", trending)
         model.addAttribute("movers", movers)
         return "index"
+    }
+
+    @GetMapping("/symbols")
+    fun symbols(model: Model): String {
+        model.addAttribute("symbols", symbolRegistry.symbols())
+        model.addAttribute("total", symbolRegistry.symbols().size)
+        return "symbols"
     }
 
     @GetMapping("/search")

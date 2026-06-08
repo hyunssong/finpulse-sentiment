@@ -1,19 +1,20 @@
 package com.hyunprojects.finpulse.service
 
+import org.springframework.beans.factory.annotation.Value
 import org.springframework.data.redis.core.StringRedisTemplate
 import org.springframework.stereotype.Service
+import java.util.concurrent.TimeUnit
+import kotlin.random.Random
 
-/**
- * A service that is called on every consumed analyzed articles
- * Based on the sentiment,
- * 1) updates the Redis cache weighted sum score that represents average sentiment.
- * 2) updates the positive sentiment score sum, positive count of analyzed articles
- */
 @Service
-class SentimentCacheService(private val redisTemplate: StringRedisTemplate) {
+class SentimentCacheService(
+    private val redisTemplate: StringRedisTemplate,
+    @Value("\${finpulse.redis.sentiment-ttl-days:7}") private val sentimentTtlDays: Long,
+    @Value("\${finpulse.redis.trending-shards:3}") private val trendingShards: Int
+) {
 
-    companion object { // similar to java static class vars
-        private const val TRENDING_KEY = "finpulse:trending"
+    companion object {
+        private const val TRENDING_BASE_KEY = "finpulse:trending"
         private fun sentimentKey(ticker: String) = "finpulse:sentiment:$ticker"
     }
 
@@ -22,6 +23,9 @@ class SentimentCacheService(private val redisTemplate: StringRedisTemplate) {
         val hash = redisTemplate.opsForHash<String, String>()
 
         hash.increment(key, "total", 1L)
+        // sliding TTL: refreshed on every write so active tickers stay warm;
+        // inactive tickers expire after sentimentTtlDays to prevent unbounded growth
+        redisTemplate.expire(key, sentimentTtlDays, TimeUnit.DAYS)
 
         val weighted = when (sentiment) {
             "positive" ->  score
@@ -36,10 +40,18 @@ class SentimentCacheService(private val redisTemplate: StringRedisTemplate) {
 
             val posSum   = hash.get(key, "positiveSum")?.toDoubleOrNull()   ?: score
             val posCount = hash.get(key, "positiveCount")?.toDoubleOrNull() ?: 1.0
-            redisTemplate.opsForZSet().add(TRENDING_KEY, ticker, posSum / posCount)
+            val trendingScore = posSum / posCount
+
+            // write to every shard so each shard holds a complete view of trending scores;
+            // reads are then spread across shards to avoid a single hot key
+            repeat(trendingShards) { shard ->
+                redisTemplate.opsForZSet().add("$TRENDING_BASE_KEY:$shard", ticker, trendingScore)
+            }
         }
     }
 
-    fun topTrending(n: Long = 10): Set<String> =
-        redisTemplate.opsForZSet().reverseRange(TRENDING_KEY, 0, n - 1) ?: emptySet()
+    fun topTrending(n: Long = 10): Set<String> {
+        val shard = Random.nextInt(trendingShards)
+        return redisTemplate.opsForZSet().reverseRange("$TRENDING_BASE_KEY:$shard", 0, n - 1) ?: emptySet()
+    }
 }

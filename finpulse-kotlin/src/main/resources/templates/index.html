@@ -34,11 +34,14 @@
 <nav class="navbar navbar-dark">
     <div class="container">
         <a class="navbar-brand fw-bold" href="/">FinPulse</a>
+        <div class="d-flex gap-3 align-items-center">
+        <a href="/symbols" class="text-light text-decoration-none small">Symbols</a>
         <form class="d-flex gap-2" method="get" action="/search">
             <input class="form-control form-control-sm bg-dark text-light border-secondary"
                    type="text" name="symbol" placeholder="Search ticker… (AAPL)" required>
             <button class="btn btn-sm btn-outline-light" type="submit">Go</button>
         </form>
+        </div>
     </div>
 </nav>
 
@@ -55,7 +58,7 @@
         </div>
         <div class="card-body p-0">
             <table class="table table-sm mb-0">
-                <thead><tr><th>#</th><th>Ticker</th><th>Mentions</th></tr></thead>
+                <thead><tr><th>#</th><th>Ticker</th><th>Mentions</th><th>RVOL</th></tr></thead>
                 <tbody id="trending-body">
                 <tr th:each="t, stat : ${trending}">
                     <td th:text="${stat.count}" class="text-secondary"></td>
@@ -65,6 +68,12 @@
                            class="text-decoration-none fw-semibold text-info"></a>
                     </td>
                     <td th:text="${t.mentionCount}"></td>
+                    <td>
+                        <span th:if="${t.rvol != null}"
+                              th:classappend="${t.rvol >= 3} ? 'text-success fw-semibold' : (${t.rvol >= 1.5} ? 'text-warning' : 'text-secondary')"
+                              th:text="${#numbers.formatDecimal(t.rvol, 1, 1) + 'x'}"></span>
+                        <span th:if="${t.rvol == null}" class="text-secondary small">—</span>
+                    </td>
                 </tr>
                 <tr th:if="${#lists.isEmpty(trending)}">
                     <td colspan="3" class="text-secondary text-center py-3">No data yet — fetch some articles first.</td>

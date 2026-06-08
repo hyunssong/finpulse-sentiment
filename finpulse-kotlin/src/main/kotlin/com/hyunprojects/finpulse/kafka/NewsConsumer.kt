@@ -10,6 +10,13 @@ import org.springframework.kafka.annotation.KafkaListener
 import org.springframework.stereotype.Component
 import tools.jackson.databind.ObjectMapper
 
+/**
+ * Class that gets the articles from topic analyzed-articles
+ * For each consumed article...
+ * 1. saves to the database
+ * 2. when the sentiment score is larger than the threshold pushes the event to alert through webflux
+ * 3. updates the redis cache score related to the ticker
+ */
 @Component
 class NewsConsumer(
     private val objectMapper: ObjectMapper,

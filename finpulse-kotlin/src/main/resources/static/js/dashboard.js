@@ -3,15 +3,25 @@
         const tbody = document.getElementById('trending-body');
         if (!tbody) return;
         if (!tickers.length) {
-            tbody.innerHTML = '<tr><td colspan="3" class="text-secondary text-center py-3">No data yet.</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="4" class="text-secondary text-center py-3">No data yet.</td></tr>';
             return;
         }
-        tbody.innerHTML = tickers.map((t, i) => `
+        tbody.innerHTML = tickers.map((t, i) => {
+            let rvolCell;
+            if (t.rvol == null) {
+                rvolCell = '<span class="text-secondary">—</span>';
+            } else {
+                const cls = t.rvol >= 3 ? 'text-success fw-semibold' : t.rvol >= 1.5 ? 'text-warning' : 'text-secondary';
+                rvolCell = `<span class="${cls}">${t.rvol.toFixed(2)}x</span>`;
+            }
+            return `
             <tr>
                 <td class="text-secondary">${i + 1}</td>
                 <td><a href="/ticker/${t.symbol}" class="text-decoration-none fw-semibold text-info">${t.symbol}</a></td>
                 <td>${t.mentionCount}</td>
-            </tr>`).join('');
+                <td>${rvolCell}</td>
+            </tr>`;
+        }).join('');
     }
 
     function renderMovers(movers) {
@@ -50,7 +60,6 @@
         }).catch(() => {}).finally(() => setRefreshing(false));
     }
 
-    refresh();
     setInterval(refresh, 60000);
 
     document.getElementById('btn-refresh')?.addEventListener('click', refresh);
