@@ -1,4 +1,6 @@
 HELP.md
+*.spec.md
+*.spec
 .gradle
 build/
 !gradle/wrapper/gradle-wrapper.jar
@@ -6,7 +8,6 @@ build/
 !**/src/test/**/build/
 docs/*
 k6/*
-*.md
 
 ### STS ###
 .apt_generated
