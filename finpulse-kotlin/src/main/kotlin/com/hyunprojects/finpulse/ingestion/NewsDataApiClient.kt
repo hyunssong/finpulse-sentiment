@@ -24,11 +24,11 @@ class NewsDataApiClient(@Value("\${newsdata.api.key}") private val apiKey:String
             .body(String::class.java)
             ?: return emptyList()
 
-        val response: NewsDataResponse = objectMapper.readValue(
+        val articles: NewsDataResponse = objectMapper.readValue(
             json,
             NewsDataResponse::class.java
         )
 
-        return response.results.map { it.toArticle(symbol) }
+        return articles.results.map { it.toArticle(symbol) }
     }
 }

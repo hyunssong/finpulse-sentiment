@@ -17,17 +17,15 @@ import java.time.Instant
 @ExtendWith(MockitoExtension::class)
 class SentimentProcessorTest {
 
-    @Mock
-    private lateinit var objectMapper: ObjectMapper
-
-    @Mock
-    private lateinit var kafkaTemplate: KafkaTemplate<String, String>
+    @Mock private lateinit var objectMapper: ObjectMapper
+    @Mock private lateinit var kafkaTemplate: KafkaTemplate<String, String>
+    @Mock private lateinit var finbertClient: FinbertClient
 
     private lateinit var processor: SentimentProcessor
 
     @BeforeEach
     fun setUp() {
-        processor = SentimentProcessor(objectMapper, kafkaTemplate, saltBuckets = 3)
+        processor = SentimentProcessor(objectMapper, kafkaTemplate, finbertClient, saltBuckets = 3)
     }
 
     private fun event(title: String, summary: String = "") = ArticleEvent(
@@ -45,10 +43,11 @@ class SentimentProcessorTest {
     }
 
     @Test
-    fun `positive-heavy text produces positive sentiment`() {
-        // beats, record, surged, profit, gain, growth = 6 positive, 0 negative → score 1.0
-        val evt = event("AAPL beats record surged profit gain growth")
+    fun `positive finbert result is forwarded to analyzed-articles`() {
+        val evt = event("AAPL beats estimates", "Revenue exceeded expectations")
         stubReadValue(evt)
+        `when`(finbertClient.analyze(evt.title, evt.summary))
+            .thenReturn(FinbertClient.AnalysisResult("positive", 0.9823))
         val captor = ArgumentCaptor.forClass(Any::class.java)
         `when`(objectMapper.writeValueAsString(captor.capture())).thenReturn("{}")
 
@@ -56,15 +55,16 @@ class SentimentProcessorTest {
 
         val analyzed = captor.value as AnalyzedArticleEvent
         assertEquals("positive", analyzed.sentiment)
-        assertTrue(analyzed.sentimentScore >= 0.6)
+        assertEquals(0.9823, analyzed.sentimentScore)
         verify(kafkaTemplate).send(eq("analyzed-articles"), anyString(), eq("{}"))
     }
 
     @Test
-    fun `negative-heavy text produces negative sentiment`() {
-        // misses, loss, declined, crashed, layoffs, warning = 0 positive, 6 negative → score 0.0
-        val evt = event("AAPL misses loss declined crashed layoffs warning")
+    fun `negative finbert result is forwarded`() {
+        val evt = event("AAPL misses earnings, guidance cut")
         stubReadValue(evt)
+        `when`(finbertClient.analyze(evt.title, evt.summary))
+            .thenReturn(FinbertClient.AnalysisResult("negative", 0.8741))
         val captor = ArgumentCaptor.forClass(Any::class.java)
         `when`(objectMapper.writeValueAsString(captor.capture())).thenReturn("{}")
 
@@ -72,13 +72,15 @@ class SentimentProcessorTest {
 
         val analyzed = captor.value as AnalyzedArticleEvent
         assertEquals("negative", analyzed.sentiment)
-        assertTrue(analyzed.sentimentScore < 0.4)
+        assertEquals(0.8741, analyzed.sentimentScore)
     }
 
     @Test
-    fun `text with no matching words defaults to neutral with score 0_5`() {
-        val evt = event("Company provides a quarterly market update")
+    fun `neutral finbert result is forwarded`() {
+        val evt = event("Company provides quarterly market update")
         stubReadValue(evt)
+        `when`(finbertClient.analyze(evt.title, evt.summary))
+            .thenReturn(FinbertClient.AnalysisResult("neutral", 0.6102))
         val captor = ArgumentCaptor.forClass(Any::class.java)
         `when`(objectMapper.writeValueAsString(captor.capture())).thenReturn("{}")
 
@@ -86,22 +88,7 @@ class SentimentProcessorTest {
 
         val analyzed = captor.value as AnalyzedArticleEvent
         assertEquals("neutral", analyzed.sentiment)
-        assertEquals(0.5, analyzed.sentimentScore)
-    }
-
-    @Test
-    fun `equal positive and negative word counts produce neutral`() {
-        // beats + record (pos=2) vs misses + loss (neg=2) → score = 0.5 → neutral
-        val evt = event("AAPL beats record but misses loss")
-        stubReadValue(evt)
-        val captor = ArgumentCaptor.forClass(Any::class.java)
-        `when`(objectMapper.writeValueAsString(captor.capture())).thenReturn("{}")
-
-        processor.process("{}")
-
-        val analyzed = captor.value as AnalyzedArticleEvent
-        assertEquals("neutral", analyzed.sentiment)
-        assertEquals(0.5, analyzed.sentimentScore)
+        assertEquals(0.6102, analyzed.sentimentScore)
     }
 
     @Test
@@ -110,6 +97,17 @@ class SentimentProcessorTest {
             .thenThrow(RuntimeException("malformed json"))
 
         assertDoesNotThrow { processor.process("bad-json") }
+        verifyNoInteractions(kafkaTemplate)
+    }
+
+    @Test
+    fun `finbert client error is swallowed and kafka is never called`() {
+        val evt = event("AAPL news")
+        stubReadValue(evt)
+        `when`(finbertClient.analyze(anyString(), anyString()))
+            .thenThrow(RuntimeException("HTTP 503 Service Unavailable"))
+
+        assertDoesNotThrow { processor.process("{}") }
         verifyNoInteractions(kafkaTemplate)
     }
 }

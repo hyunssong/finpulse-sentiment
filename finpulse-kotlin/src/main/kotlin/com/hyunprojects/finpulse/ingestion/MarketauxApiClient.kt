@@ -1,7 +1,5 @@
 package com.hyunprojects.finpulse.ingestion
 
-import com.hyunprojects.finpulse.ingestion.dto.FinnhubArticle
-import com.hyunprojects.finpulse.ingestion.dto.MarketauxArticle
 import com.hyunprojects.finpulse.ingestion.dto.MarketauxResponse
 import com.hyunprojects.finpulse.kafka.dto.ArticleEvent
 import org.springframework.beans.factory.annotation.Value

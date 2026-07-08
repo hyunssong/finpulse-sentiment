@@ -8,6 +8,10 @@ import org.springframework.stereotype.Component
 import tools.jackson.databind.ObjectMapper
 import kotlin.math.abs
 
+/**
+ * Producer that sends the fetched article to Kafka raw-articles topic with the ticker as key
+ * To avoid large message, has a char limit for the article summary field
+ */
 @Component
 class NewsProducer(
     private val kafkaTemplate: KafkaTemplate<String, String>,

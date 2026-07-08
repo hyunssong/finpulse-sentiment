@@ -52,7 +52,7 @@ services:
   finpulse:
     build: .
     ports:
-      - "8081:8081"
+      - "8080:8080"
     environment:
       KAFKA_BOOTSTRAP_SERVERS: kafka:9092
       DB_URL: jdbc:mysql://mysql:3306/finpulse
@@ -64,6 +64,7 @@ services:
       MARKETAUX_API_KEY: ${MARKETAUX_API_KEY}
       NEWSDATA_API_KEY: ${NEWSDATA_API_KEY}
       TWELVEDATA_API_KEY: ${TWELVEDATA_API_KEY}
+      FINPULSE_FINBERT_URL: http://sentiment:8000
     depends_on:
       kafka:
         condition: service_healthy
@@ -71,11 +72,21 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+      sentiment:
+        condition: service_healthy
 
   sentiment:
     build: ../finpulse-sentiment
+    ports:
+      - "8000:8000"
     environment:
       KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/docs')"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      start_period: 60s
     depends_on:
       kafka:
         condition: service_healthy

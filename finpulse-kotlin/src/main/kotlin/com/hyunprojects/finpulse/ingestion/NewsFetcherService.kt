@@ -8,6 +8,9 @@ import org.springframework.stereotype.Service
 import java.time.LocalDate
 import java.util.concurrent.ConcurrentHashMap
 
+/**
+ * Service class to fetch news from each ApiClient
+ */
 @Service
 class NewsFetcherService(
     private val clients: List<ApiClient>,
@@ -18,11 +21,14 @@ class NewsFetcherService(
     @Value("\${finpulse.fetch.request-delay-ms:150}") private val requestDelayMs: Long
 ) {
     private val log = LoggerFactory.getLogger(javaClass)
+
+    // track the URL of news that are stored in a thread-safe manner
     private val seenUrls: MutableSet<String> = ConcurrentHashMap.newKeySet()
 
-    // initialDelayString gives the ApplicationReadyEvent (which loads the registry) time to complete.
+    // initialDelayString gives the ApplicationReadyEvent (which fetches and loads the Symbol registry) time to complete.
     // @Scheduled fires before ApplicationReadyEvent so without a delay the first run uses the fallback list.
-    @Scheduled(fixedDelayString = "PT15M", initialDelayString = "PT30S")
+    @Scheduled(initialDelayString = "PT30S", fixedDelayString = "PT15M")
+    // wait for 30s before first trigger
     fun fetchAll() {
         fetchForSymbols(symbolRegistry.symbols())
     }

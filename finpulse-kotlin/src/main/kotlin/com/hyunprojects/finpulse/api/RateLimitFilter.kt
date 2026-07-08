@@ -21,6 +21,7 @@ class RateLimitFilter(private val redis: ReactiveStringRedisTemplate) : WebFilte
         if (!exchange.request.path.value().startsWith("/api/")) return chain.filter(exchange)
 
         val ip = exchange.request.remoteAddress?.address?.hostAddress ?: "unknown"
+        if (ip == "127.0.0.1" || ip == "::1" || ip == "0:0:0:0:0:0:0:1") return chain.filter(exchange)
         val bucket = System.currentTimeMillis() / WINDOW.toMillis() // divides time into 60 seconds
         // requests that come from same ip and within 60 sec range will be in the same key
         val key = "rl:$ip:$bucket"

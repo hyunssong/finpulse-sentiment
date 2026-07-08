@@ -33,11 +33,11 @@ class TwelveDataClient(
 
         val values = node["values"] ?: return emptyList()
         return values.mapNotNull { entry ->
-            val datetimeStr = entry["datetime"]?.asText() ?: return@mapNotNull null
+            val datetimeStr = entry["datetime"]?.asText() ?: return@mapNotNull null // if value is missing, skip that entry and move to the next one
             val volume = entry["volume"]?.asText()?.toLongOrNull() ?: return@mapNotNull null
             // datetime is "YYYY-MM-DD" for 1day interval; take first 10 chars to be safe
             val date = runCatching { LocalDate.parse(datetimeStr.take(10)) }.getOrNull()
-                ?: return@mapNotNull null
+                ?: return@mapNotNull null // if LocalDate.parse throws an exception, the entry is skipped as it returns null by runCatching.getOrNull()
             date to volume
         }
     }
